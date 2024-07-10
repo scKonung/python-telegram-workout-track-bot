@@ -6,6 +6,7 @@ class TrainingPlan(Base):
     __tablename__ = 'training_plans'
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, nullable=False)
+    description = Column(String, unique=False, nullable=True)
     user_id = Column(Integer, unique=False, nullable=False)
 
     exercises = relationship("ExercisePlan", back_populates="training_plan")
