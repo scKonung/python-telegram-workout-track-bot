@@ -1,5 +1,8 @@
 #enviroment parameters
-./.env
+.env
+
+#Database
+training.db
 
 #Idea data
 ./.idea
