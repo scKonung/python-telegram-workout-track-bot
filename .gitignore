@@ -2,10 +2,12 @@
 .env
 
 #Database
-training.db
+workout_tracker.db
 
 #Idea data
 ./.idea
 
 #venv data
 ./venv
+
+./examples
