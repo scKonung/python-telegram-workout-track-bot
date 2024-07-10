@@ -1,0 +1,13 @@
+#enviroment parameters
+.env
+
+#Database
+workout_tracker.db
+
+#Idea data
+./.idea
+
+#venv data
+./venv
+
+./examples
