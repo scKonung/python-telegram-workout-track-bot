@@ -1,0 +1,8 @@
+#enviroment parameters
+./.env
+
+#Idea data
+./.idea
+
+#venv data
+./venv
