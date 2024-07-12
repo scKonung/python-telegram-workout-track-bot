@@ -12,8 +12,10 @@ from telegram.ext import (
     MessageHandler,
     filters,
 )
+from workout_tracker.db.database import db
 from workout_tracker.logger_configuration import configurate_logger
 from workout_tracker.constans import BOT_TOKEN
+from workout_tracker.models.plan import TrainingPlan
 
 training_plan = {}
 logger = configurate_logger()
@@ -31,6 +33,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def create_training_plan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int :
+    context.user_data["training_plan"] = TrainingPlan()
 
     await update.message.reply_text("Sure, we can create for you new training plan\n"
                                     "Please write the name for the new plan")
@@ -38,8 +41,8 @@ async def create_training_plan(update: Update, context: ContextTypes.DEFAULT_TYP
     return NAME
 
 async def name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-
-    training_plan["name"] = update.message.text
+    training_plan: TrainingPlan = context.user_data['training_plan']
+    training_plan.name = update.message.text
 
     await update.message.reply_text("Greate name, now write the description for this plan,"
                                     " if you won't do that, write /cancel")
@@ -48,11 +51,21 @@ async def name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def description(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
-    training_plan["description"] = update.message.text
+    training_plan: TrainingPlan = context.user_data['training_plan']
+    training_plan.description = update.message.text
+    training_plan.user_id = update.message.from_user.id
+
+    # Save the training plan to the database
+    db.add(training_plan)
+    db.commit()
+    db.refresh(training_plan)
+    db.close()
+
+    logger.info(f"new training creating for user: {training_plan.user_id}")
 
     await update.message.reply_text("Super, you create new training, here is the summarize about this:\n\n"
-                                    f"{training_plan['name']}\n\n"
-                                   f"{training_plan['description']}")
+                                    f"{training_plan.name}\n\n"
+                                   f"{training_plan.description}")
     return ConversationHandler.END
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -86,7 +99,3 @@ def main() -> None:
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling(allowed_updates=Update.ALL_TYPES)
-
-
-if __name__ == "__main__":
-    main()

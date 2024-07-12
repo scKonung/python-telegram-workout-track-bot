@@ -4,11 +4,12 @@ from workout_tracker.constans import DATABASE_URL
 
 
 
-engine = create_engine(DATABASE_URL)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+_engine = create_engine(DATABASE_URL)
+_SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
 Base = declarative_base()
+db = _SessionLocal()
 
 
 def init_db():
     from workout_tracker.models import plan
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=_engine)
