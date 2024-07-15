@@ -1,5 +1,5 @@
 #enviroment parameters
-.env
+workout_tracker/.env
 
 #Database
 workout_tracker.db
