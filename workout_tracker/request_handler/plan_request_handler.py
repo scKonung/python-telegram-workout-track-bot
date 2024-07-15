@@ -40,7 +40,7 @@ async def create_training_plan(update: Update, context: ContextTypes.DEFAULT_TYP
 
     return NAME
 
-async def name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def training_plan_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     training_plan: TrainingPlan = context.user_data['training_plan']
     training_plan.name = update.message.text
 
@@ -49,7 +49,7 @@ async def name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     return DESCRIPTION
 
-async def description(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def training_plan_description(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     training_plan: TrainingPlan = context.user_data['training_plan']
     training_plan.description = update.message.text
@@ -88,8 +88,8 @@ def main() -> None:
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("create_training_plan", create_training_plan)],
         states={
-            NAME: [MessageHandler(filters.TEXT, name)],
-            DESCRIPTION: [MessageHandler(filters.TEXT, description)],
+            NAME: [MessageHandler(filters.TEXT, training_plan_name)],
+            DESCRIPTION: [MessageHandler(filters.TEXT, training_plan_description)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
 
