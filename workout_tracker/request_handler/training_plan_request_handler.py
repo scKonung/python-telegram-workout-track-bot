@@ -77,14 +77,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     return ConversationHandler.END
 
-def main() -> None:
-    """Run the bot."""
-    # Create the Application and pass it your bot's token.
-    application = Application.builder().token(BOT_TOKEN).build()
-
-    # Add conversation handler with the states GENDER, PHOTO, LOCATION and BIO
-    application.add_handler(CommandHandler("start",start))
-
+def add_training_plan_handlers(application) -> Application:
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("create_training_plan", create_training_plan)],
         states={
@@ -95,7 +88,11 @@ def main() -> None:
 
     )
 
+    # Add conversation handler with the states GENDER, PHOTO, LOCATION and BIO
+    application.add_handler(CommandHandler("start",start))
+
+
+
     application.add_handler(conv_handler)
 
-    # Run the bot until the user presses Ctrl-C
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    return application
