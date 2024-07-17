@@ -70,9 +70,9 @@ async def training_plan_description(update: Update, context: ContextTypes.DEFAUL
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Cancels and ends the conversation."""
-    user = update.message.from_user
+
     await update.message.reply_text(
-        "Bye! I hope we can talk again some day.", reply_markup=ReplyKeyboardRemove()
+        "Ok, maybe will in the next time! :)", reply_markup=ReplyKeyboardRemove()
     )
 
     return ConversationHandler.END

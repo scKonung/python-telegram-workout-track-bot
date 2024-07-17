@@ -1,9 +1,17 @@
 import pytest
 from unittest.mock import Mock, patch
 from telegram import Update, Message
-from telegram.ext import CallbackContext
-from workout_tracker.request_handler.plan_request_handler import start, create_training_plan, training_plan_name
+from telegram.ext import CallbackContext, ConversationHandler
+from workout_tracker.request_handler.plan_request_handler import (start,
+                                                                  create_training_plan,
+                                                                  training_plan_name,
+                                                                  training_plan_description)
 from workout_tracker.models.plan import TrainingPlan
+from workout_tracker.db.database import db
+
+USER_ID = 12345
+MESSAGE_TEXT = "Some message"
+
 
 @pytest.fixture
 def mock_update() -> Mock:
@@ -12,8 +20,9 @@ def mock_update() -> Mock:
     # Mock the message attribute of Update
     mock_message = Mock(spec=Message)
 
-    mock_message.text = "Some text"
+    mock_message.text = MESSAGE_TEXT
     mock_message.from_user.username = "testuser"  # Set the username
+    mock_message.from_user.user_id = USER_ID
 
     mock_update.message = mock_message
     return mock_update
@@ -68,4 +77,39 @@ async def test_training_plan_name_return_one_when_triggered(mock_update, mock_co
 async def test_training_plan_name_change_user_data_when_triggered(mock_update, mock_context_with_training_plan, mock_training_plan):
     await training_plan_name(mock_update, mock_context_with_training_plan)
 
-    assert mock_context_with_training_plan.user_data['training_plan'].name == mock_update.message.text
+    assert mock_context_with_training_plan.user_data['training_plan'].name == MESSAGE_TEXT
+    assert mock_training_plan.name == MESSAGE_TEXT
+
+@pytest.mark.asyncio
+async def test_training_plan_description_user_id_added_to_training_plan(mock_update, mock_context_with_training_plan, mock_training_plan):
+    # Call the function
+    await training_plan_description(mock_update, mock_context_with_training_plan)
+
+    assert mock_context_with_training_plan.user_data['training_plan'].name == USER_ID
+
+@pytest.mark.asyncio
+async def test_training_plan_description_add_record_to_database_when_safe_training_plan(mock_update, mock_context_with_training_plan, mock_training_plan):
+    # Mock database methods
+    db.add = Mock()
+    db.commit = Mock()
+    db.refresh = Mock()
+    db.close = Mock()
+
+    # Call the function
+    await training_plan_description(mock_update, mock_context_with_training_plan)
+
+    # Assert database methods are called
+    db.add.assert_called_once_with(mock_training_plan)
+    db.commit.assert_called_once()
+    db.refresh.assert_called_once_with(mock_training_plan)
+    db.close.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_training_plan_description_return_END_when_triggered(mock_update, mock_context_with_training_plan, mock_training_plan):
+    # Call the function
+    result = await training_plan_description(mock_update, mock_context_with_training_plan)
+
+    # Assert the correct return value
+    assert result == ConversationHandler.END
+
