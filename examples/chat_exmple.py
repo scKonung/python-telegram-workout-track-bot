@@ -12,6 +12,8 @@ from telegram.ext import (
     filters,
 )
 
+from workout_tracker.constans import BOT_TOKEN
+
 # Enable logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -77,7 +79,6 @@ async def photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     return LOCATION
 
-
 async def location(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Stores the location and asks for some info about the user."""
     user = update.message.from_user
@@ -141,14 +142,14 @@ async def response_photo(user, update: Update):
 def main() -> None:
     """Run the bot."""
     # Create the Application and pass it your bot's token.
-    application = Application.builder().token(load_token_from_env()).build()
+    application = Application.builder().token(BOT_TOKEN).build()
 
     # Add conversation handler with the states GENDER, PHOTO, LOCATION and BIO
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
             GENDER: [MessageHandler(filters.Regex("^(Boy|Girl|Croissant|Other)$"), gender)],
-            PHOTO: [MessageHandler(filters.PHOTO, photo)],
+            PHOTO: [MessageHandler(filters.PHOTO, photo),CommandHandler("skip", skip_location),],
             LOCATION: [
                 MessageHandler(filters.LOCATION, location),
                 CommandHandler("skip", skip_location),

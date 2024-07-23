@@ -5,7 +5,6 @@ It will need to create the name for this training plan and create exercise plan
 """
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
 from telegram.ext import (
-    Application,
     CommandHandler,
     ContextTypes,
     ConversationHandler,
@@ -14,7 +13,6 @@ from telegram.ext import (
 )
 from workout_tracker.db.database import db
 from workout_tracker.logger_configuration import configurate_logger
-from workout_tracker.constans import BOT_TOKEN
 from workout_tracker.models.plan import TrainingPlan
 
 training_plan = {}
@@ -22,17 +20,69 @@ logger = configurate_logger()
 
 NAME, DESCRIPTION = range(2)
 
+SELECT, CHOOSE, UPDATE_NAME, UPDATE_DESCRIPTION, UPDATE_EXERCISES = range(5)
+
+
+def add_training_plan_handlers(application):
+    _add_start_handler(application)
+    _add_training_plan_conv_handler(application)
+    _add_manage_training_plan_handler(application)
+    _add_update_training_plan_handler(application)
+
+def _add_start_handler(application):
+    application.add_handler(CommandHandler("start", start))
+
+def _add_training_plan_conv_handler(application):
+    conv_handler = _create_training_conv_handler()
+    application.add_handler(conv_handler)
+
+
+def _create_training_conv_handler():
+    filter = filters.TEXT & ~filters.COMMAND
+
+    conv_handler = ConversationHandler(name="training_plan_creation",
+                                       entry_points=[CommandHandler("create_training_plan", create_training_plan),
+                                                     MessageHandler(filters.Regex("^(Create Training Plan)$"), create_training_plan)],
+                                       states={
+                                           NAME: [MessageHandler(filter, training_plan_name), ],
+                                           DESCRIPTION: [MessageHandler(filter, training_plan_description),
+                                                         CommandHandler("skip",training_plan_description_skip)]
+                                       },
+                                       fallbacks=[CommandHandler("cancel", cancel)],
+                                       )
+    return conv_handler
+
+def _add_manage_training_plan_handler(application):
+    application.add_handler(CommandHandler("manage", training_plan_manage))
+
+def _add_update_training_plan_handler(application):
+    filter = filters.TEXT & ~filters.COMMAND
+    conv_handler = ConversationHandler(name="training_plan_update",
+                                       entry_points=[CommandHandler("update", select_training_plan_to_update)],
+                                       states={
+                                           SELECT: [MessageHandler(filter, select_field_to_update), ],
+                                           DESCRIPTION: [MessageHandler(filter, training_plan_description),
+                                                         CommandHandler("skip", training_plan_description_skip)]
+                                       },
+                                       fallbacks=[CommandHandler("cancel", cancel)],
+                                       )
+    application.add_handler(conv_handler)
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    reply_keyboard = [["Create Training Plan"]]
     logger.info(f"User: {update.message.from_user.username} start use the bot")
 
     await update.message.reply_text(
         "Hi! My name is Workout Track. I will help you to manage your workouts, so you can see you progress in the gym\n\n"
-        "Bot currently in development proccess, this text will be uptaded later"
+        "Bot currently in development process, this text will be uptaded later",
+        reply_markup=ReplyKeyboardMarkup(
+            reply_keyboard, one_time_keyboard=True
+        ),
+
     )
 
-
-
-async def create_training_plan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int :
+async def create_training_plan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data["training_plan"] = TrainingPlan()
 
     await update.message.reply_text("Sure, we can create for you new training plan\n"
@@ -45,31 +95,44 @@ async def training_plan_name(update: Update, context: ContextTypes.DEFAULT_TYPE)
     training_plan.name = update.message.text
 
     await update.message.reply_text("Greate name, now write the description for this plan,"
-                                    " if you won't do that, write /cancel")
+                                    " if you won't do that, write /skip")
 
     return DESCRIPTION
 
 async def training_plan_description(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-
     training_plan: TrainingPlan = context.user_data['training_plan']
     training_plan.description = update.message.text
     training_plan.user_id = update.message.from_user.id
 
-    # Save the training plan to the database
+    _save_training_plan_to_db(training_plan)
+    logger.info(f"new training creating for user: {training_plan.user_id}")
+
+    await _reply_summary_training_plan(update, training_plan)
+
+    return ConversationHandler.END
+
+async def training_plan_description_skip(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    training_plan: TrainingPlan = context.user_data['training_plan']
+    training_plan.user_id = update.message.from_user.id
+
+    _save_training_plan_to_db(training_plan)
+
+    logger.info(f"new training creating for user: {training_plan.user_id}")
+
+    await _reply_summary_training_plan(update, training_plan)
+    return ConversationHandler.END
+
+def _save_training_plan_to_db(training_plan: TrainingPlan):
     db.add(training_plan)
     db.commit()
     db.refresh(training_plan)
     db.close()
 
-    logger.info(f"new training creating for user: {training_plan.user_id}")
-
+async def _reply_summary_training_plan(update: Update, training_plan: TrainingPlan):
     await update.message.reply_text("Super, you create new training, here is the summarize about this:\n\n"
-                                    f"{training_plan.name}\n\n"
-                                   f"{training_plan.description}")
-    return ConversationHandler.END
+                                    f"{training_plan.name}\n\n")
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Cancels and ends the conversation."""
 
     await update.message.reply_text(
         "Ok, maybe will in the next time! :)", reply_markup=ReplyKeyboardRemove()
@@ -77,22 +140,52 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     return ConversationHandler.END
 
-def add_training_plan_handlers(application) -> Application:
-    conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("create_training_plan", create_training_plan)],
-        states={
-            NAME: [MessageHandler(filters.TEXT, training_plan_name)],
-            DESCRIPTION: [MessageHandler(filters.TEXT, training_plan_description)],
-        },
-        fallbacks=[CommandHandler("cancel", cancel)],
 
+#TODO also need to put here exercise plan, so you can see all information
+async def training_plan_manage(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.message.from_user.id
+
+    training_plans = db.query(TrainingPlan).filter_by(user_id=user_id).all()
+
+    if training_plans:
+        plans_text = "\n".join(
+            [f"{plan.id}: {plan.name} - {plan.description or ' '}" for plan in training_plans])
+        response_text = f"Here are your training plans:\n{plans_text}"
+    else:
+        response_text = "You have no training plans yet ;)"
+
+    # Send the response message
+    await update.message.reply_text(response_text)
+
+async def select_training_plan_to_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user_id = update.message.from_user.id
+
+    training_plans = db.query(TrainingPlan.name).filter_by(user_id=user_id).all()
+
+    await update.message.reply_text(
+        "Sure, please choose training plan, which you want to change: ",
+        reply_markup=ReplyKeyboardMarkup(
+            training_plans, one_time_keyboard=True
+        ),
     )
 
-    # Add conversation handler with the states GENDER, PHOTO, LOCATION and BIO
-    application.add_handler(CommandHandler("start",start))
+    return SELECT
+
+async def select_field_to_update(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user_id = update.message.from_user.id
+    training_plan_name = update.message.text
 
 
+    training_plans = db.query(TrainingPlan.name).filter_by(user_id=user_id, name=training_plan_name).all()
 
-    application.add_handler(conv_handler)
+    await update.message.reply_text(
+        "Sure, we will change this traning plan\n"
+        "Choose what you want to change",
+        reply_markup=ReplyKeyboardMarkup(
+            [['Name','Description',"Exercises"]], one_time_keyboard=True
+        ),
+    )
+    return CHOOSE
 
-    return application
+async def update_training_plan_name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+
